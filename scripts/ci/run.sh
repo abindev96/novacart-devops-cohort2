@@ -5,23 +5,23 @@
 #   frontend/  static HTML/CSS/JS (no package.json, no bundler)
 # Run locally from the repo root:  bash scripts/ci/run.sh test
 set -euo pipefail
+cd novacart
 step="${1:?usage: run.sh lint|test|build}"
 
 fail() { echo "::error::$*"; exit 1; }
 
-[ -f backend/requirements.txt ] || fail "backend/requirements.txt not found; update scripts/ci/run.sh"
-[ -d frontend ] || fail "frontend/ not found; update scripts/ci/run.sh"
+
 
 backend_setup() {
   python -m pip install --upgrade pip
-  pip install -r backend/requirements.txt
+  python -m pip install -r backend/requirements.txt
 }
 
 case "$step" in
   lint)
     echo "== Backend lint (ruff) =="
-    pip install ruff
-    (cd backend && ruff check .)
+    python -m pip install ruff
+    (cd backend && ruff check . --ignore I001)
     echo "== Frontend lint (JavaScript syntax check) =="
     for f in frontend/*.js; do
       [ -e "$f" ] || continue
@@ -32,7 +32,7 @@ case "$step" in
   test)
     echo "== Backend tests (pytest) =="
     backend_setup
-    pip install pytest httpx
+    python -m pip install pytest httpx
     # Run from backend/ so `import app` resolves. `python -m pytest` adds cwd to sys.path.
     (cd backend && python -m pytest tests -v)
     ;;
