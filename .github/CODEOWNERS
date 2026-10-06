@@ -1,0 +1,7 @@
+# Optional. Uncomment and replace with real GitHub handles/teams to
+# auto-request reviewers. To make owner review mandatory, set
+# "require_code_owner_review": true in .github/rulesets/protect-main.json.
+#
+# *                  @your-org/novacart-devs
+# /.github/          @your-org/novacart-maintainers
+# /scripts/          @your-org/novacart-maintainers
