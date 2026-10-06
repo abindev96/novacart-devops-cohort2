@@ -150,3 +150,4 @@ Other facts still to confirm:
 - CI (`.github/workflows/ci.yml`) runs `lint`, `test`, `build` before anything merges to `main`: `ruff` and `pytest` for `backend/`, a JavaScript syntax check and file checks for `frontend/`.
 - `main` is production-ready; deployments are made from `main` (tagged releases).
 - Emergency fixes follow the `hotfix/*` path in `docs/git-strategy.md`.
+
