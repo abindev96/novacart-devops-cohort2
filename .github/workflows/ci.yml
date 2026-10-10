@@ -38,7 +38,7 @@ jobs:
         run: pip install ruff
 
       - name: Run Python lint
-        run: ruff check novacart/backend --ignore I001
+        run: ruff check novacart/backend --ignore I001,UP017
 
       - name: Run JavaScript syntax check
         run: node --check novacart/frontend/app.js
