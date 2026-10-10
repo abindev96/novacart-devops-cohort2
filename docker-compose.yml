@@ -2,9 +2,7 @@ name: novacart
 
 services:
 
-  # ------------------------------------------------------------------
-  # PostgreSQL database
-  # ------------------------------------------------------------------
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -28,13 +26,7 @@ services:
       retries: 10
       start_period: 10s
 
-    # PostgreSQL is intentionally NOT published to the host.
-    # Backend reaches it through the Compose service name: db:5432
 
-
-  # ------------------------------------------------------------------
-  # FastAPI backend
-  # ------------------------------------------------------------------
   backend:
     build:
       context: ./novacart/backend
@@ -59,20 +51,16 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)"
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/ready', timeout=2)"
         ]
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 20s
 
-    # Backend is intentionally NOT published to the host.
-    # Frontend reaches it through: http://backend:8000
 
 
-  # ------------------------------------------------------------------
-  # Frontend - Nginx + static application
-  # ------------------------------------------------------------------
+ 
   frontend:
     build:
       context: ./novacart/frontend
@@ -81,22 +69,17 @@ services:
 
     restart: unless-stopped
 
-    environment:
-      BACKEND_URL: http://backend:8000
 
     depends_on:
       backend:
         condition: service_healthy
 
     ports:
-      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080"
+      - "80:80"
 
-    # Nginx is inside the frontend image.
-    # Only frontend is published to the host.
+ 
 
 
-# --------------------------------------------------------------------
-# Persistent storage
-# --------------------------------------------------------------------
+
 volumes:
   postgres-data:
