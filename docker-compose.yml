@@ -1,18 +1,16 @@
+
 name: novacart
 
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
-
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-novacart}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-novacart_local_only}
       POSTGRES_DB: ${POSTGRES_DB:-novacart}
-
     volumes:
       - postgres-data:/var/lib/postgresql/data
-
     healthcheck:
       test:
         [
@@ -27,20 +25,16 @@ services:
   backend:
     build:
       context: ./novacart/backend
-
     image: novacart-backend:${NOVACART_TAG:-local}
     restart: unless-stopped
-
     environment:
       DATABASE_URL: ${DB_DRIVER_SCHEME:-postgresql}://${POSTGRES_USER:-novacart}:${POSTGRES_PASSWORD:-novacart_local_only}@db:5432/${POSTGRES_DB:-novacart}
       APP_ENV: ${APP_ENV:-dev}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-
     depends_on:
       db:
         condition: service_healthy
         restart: true
-
     healthcheck:
       test:
         [
@@ -57,17 +51,28 @@ services:
   frontend:
     build:
       context: ./novacart/frontend
-
     image: novacart-frontend:${NOVACART_TAG:-local}
     restart: unless-stopped
-
     depends_on:
       backend:
         condition: service_healthy
-
     ports:
       - "80:80"
 
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+
 volumes:
   postgres-data:
-
