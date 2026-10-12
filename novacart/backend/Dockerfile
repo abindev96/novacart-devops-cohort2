@@ -5,10 +5,7 @@ WORKDIR /app
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt \
-    && useradd --create-home appuser \
-    && mkdir -p /app/data \
-    && chown -R appuser:appuser /app/data
+RUN pip install --no-cache-dir -r requirements.txt 
 
 COPY app/ /app/
 
