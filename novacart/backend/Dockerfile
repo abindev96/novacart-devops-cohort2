@@ -11,7 +11,6 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 COPY app/ /app/
 
-ENV DATABASE_URL=sqlite:////app/data/novacart.db
 
 USER appuser
 
