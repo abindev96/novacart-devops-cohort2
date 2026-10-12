@@ -116,4 +116,47 @@ jobs:
           POSTGRES_USER: novacart
           POSTGRES_PASSWORD: novacart_local_only
           POSTGRES_DB: novacart
+          NOVACART_TAG: ci
         run: docker compose config -q
+
+      - name: Start NovaCart stack
+        env:
+          POSTGRES_USER: novacart
+          POSTGRES_PASSWORD: novacart_local_only
+          POSTGRES_DB: novacart
+          NOVACART_TAG: ci
+        run: docker compose up -d --wait
+
+      - name: Smoke test application with curl
+        shell: bash
+        run: |
+          echo "Checking NovaCart API..."
+
+          for attempt in {1..10}; do
+            if curl --fail --silent --show-error \
+              --max-time 5 \
+              http://localhost/api/products \
+              --output products.json; then
+              echo "SUCCESS: NovaCart API is responding."
+              cat products.json
+              exit 0
+            fi
+
+            echo "Attempt ${attempt}/10 failed."
+            echo "Retrying in 3 seconds..."
+            sleep 3
+          done
+
+          echo "FAILED: NovaCart API did not respond successfully."
+          exit 1
+
+      - name: Show service logs on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=100
+
+      - name: Cleanup containers and volumes
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+
