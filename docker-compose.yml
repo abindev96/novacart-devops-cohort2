@@ -53,6 +53,8 @@ services:
       context: ./novacart/frontend
     image: novacart-frontend:${NOVACART_TAG:-local}
     restart: unless-stopped
+    environment:
+      BACKEND_URL: ${BACKEND_URL:-http://backend:8080}
     depends_on:
       backend:
         condition: service_healthy
