@@ -4,3 +4,10 @@ __pycache__/
 .DS_Store
 *venv
 *.db
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
