@@ -1,392 +1,141 @@
-
-terraform {
-  required_version = ">= 1.5.0"
-
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 4.81.0"
-    }
-  }
-}
-
-provider "azurerm" {
-  features {}
-
-  subscription_id = "c067343b-5c74-4217-813c-da18a4199741"
-}
-
 locals {
-  location = "Central India"
+  # Last seven hex characters of the subscription GUID reduce global-name collisions.
+  subscription_id_compact = replace(var.subscription_id, "-", "")
+  subscription_suffix     = substr(local.subscription_id_compact, length(local.subscription_id_compact) - 7, 7)
 
   tags = {
-    Project     = "NovaCart"
-    Environment = "Development"
+    Project     = var.project_display_name
+    Environment = var.environment == "dev" ? "Development" : "Production"
+    ManagedBy   = "Terraform"
   }
 
-  # Replace this placeholder with your PostgreSQL administrator password.
-  # Do not commit a real password to Git.
-  postgres_admin_password = "REPLACE_WITH_A_STRONG_PASSWORD"
+  postgres_server_name = "${var.project_name}-ci-pg-${var.environment}-${local.subscription_suffix}"
 
-  image_tag = "v1.0.0"
-}
+  names = {
+    app_resource_group      = "${var.project_name}-ci-rg-${var.environment}"
+    network_resource_group  = "${var.project_name}-ci-nrg-${var.environment}"
+    postgres_resource_group = "${var.project_name}-ci-pgrg-${var.environment}"
 
-# ============================================================
-# RESOURCE GROUP 1: ACA, ACR, Log Analytics and Container Apps
-# ============================================================
+    # Azure Container Registry names must be alphanumeric with no hyphens.
+    acr               = "${var.project_name}cicr${var.environment}${local.subscription_suffix}"
+    log_analytics     = "${var.project_name}-ci-law-${var.environment}"
+    acr_pull_identity = "${var.project_name}-ci-id-${var.environment}"
 
-resource "azurerm_resource_group" "rg" {
-  name     = "NOVOCART-CI-ACA-DEV"
-  location = local.location
-  tags     = local.tags
-}
+    vnet              = "${var.project_name}-ci-vnet-${var.environment}"
+    aca_subnet        = "${var.project_name}-ci-snet-aca-${var.environment}"
+    postgres_subnet   = "${var.project_name}-ci-snet-pg-${var.environment}"
+    postgres_dns_zone = "${local.postgres_server_name}.private.postgres.database.azure.com"
+    postgres_dns_link = "${var.project_name}-ci-pg-link-${var.environment}"
 
-# Existing Azure Container Registry
-# Keep this resource address as azurerm_container_registry.cr
-resource "azurerm_container_registry" "cr" {
-  name                = "novocartdevcr"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
+    # PostgreSQL server and Key Vault names must be globally unique.
+    postgres_server = local.postgres_server_name
+    key_vault       = "${var.project_name}cikv${var.environment}${local.subscription_suffix}"
 
-  sku                   = "Basic"
-  admin_enabled         = false
-  role_assignment_mode  = "LegacyRegistryPermissions"
-
-  tags = local.tags
-}
-
-resource "azurerm_log_analytics_workspace" "la" {
-  name                = "novo-ci-lws"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-
-  sku               = "PerGB2018"
-  retention_in_days = 30
-
-  tags = local.tags
-}
-
-# Managed identity for pulling images from ACR
-resource "azurerm_user_assigned_identity" "acr_pull" {
-  name                = "novacart-acr-pull-identity"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-
-  tags = local.tags
-}
-
-resource "azurerm_role_assignment" "acr_pull" {
-  scope                = azurerm_container_registry.cr.id
-  role_definition_name = "AcrPull"
-  principal_id         = azurerm_user_assigned_identity.acr_pull.principal_id
-
-  skip_service_principal_aad_check = true
-}
-
-# ============================================================
-# RESOURCE GROUP 2: General networking and private DNS
-# ============================================================
-
-resource "azurerm_resource_group" "vnetrg" {
-  name     = "NOVO-CI-GEN"
-  location = local.location
-  tags     = local.tags
-}
-
-resource "azurerm_virtual_network" "vnet" {
-  name                = "NOVO-CI-VNET"
-  location            = azurerm_resource_group.vnetrg.location
-  resource_group_name = azurerm_resource_group.vnetrg.name
-
-  address_space = ["172.16.24.0/22"]
-
-  tags = local.tags
-}
-
-# Dedicated subnet for Azure Container Apps infrastructure
-resource "azurerm_subnet" "acasubnet" {
-  name                 = "novo-ci-aca-infrastructure"
-  resource_group_name  = azurerm_resource_group.vnetrg.name
-  virtual_network_name = azurerm_virtual_network.vnet.name
-
-  address_prefixes = ["172.16.24.0/23"]
-
-  delegation {
-    name = "container-apps-delegation"
-
-    service_delegation {
-      name = "Microsoft.App/environments"
-
-      actions = [
-        "Microsoft.Network/virtualNetworks/subnets/join/action"
-      ]
-    }
+    container_apps_environment = "${var.project_name}-ci-cae-${var.environment}"
+    backend_app                = "${var.project_name}-ci-be-${var.environment}"
+    frontend_app               = "${var.project_name}-ci-fe-${var.environment}"
   }
 }
 
-# Dedicated subnet for PostgreSQL Flexible Server
-resource "azurerm_subnet" "pgsubnet" {
-  name                 = "novo-ci-pg-dev"
-  resource_group_name  = azurerm_resource_group.vnetrg.name
-  virtual_network_name = azurerm_virtual_network.vnet.name
 
-  address_prefixes = ["172.16.26.0/24"]
-
-  delegation {
-    name = "postgresql-delegation"
-
-    service_delegation {
-      name = "Microsoft.DBforPostgreSQL/flexibleServers"
-
-      actions = [
-        "Microsoft.Network/virtualNetworks/subnets/join/action"
-      ]
-    }
-  }
+data "azurerm_key_vault" "postgres_credentials" {
+  name                = var.key_vault_name
+  resource_group_name = var.key_vault_resource_group_name
 }
 
-resource "azurerm_private_dns_zone" "pgdnszone" {
-  name                = "novpgdev.private.postgres.database.azure.com"
-  resource_group_name = azurerm_resource_group.vnetrg.name
-
-  tags = local.tags
+data "azurerm_key_vault_secret" "postgres_admin_password" {
+  name         = var.postgres_admin_secret_name
+  key_vault_id = data.azurerm_key_vault.postgres_credentials.id
 }
 
-resource "azurerm_private_dns_zone_virtual_network_link" "pgdnszone" {
-  name                  = "novo-ci-pg-dns-link"
-  resource_group_name   = azurerm_resource_group.vnetrg.name
-  private_dns_zone_name = azurerm_private_dns_zone.pgdnszone.name
-  virtual_network_id    = azurerm_virtual_network.vnet.id
+module "platform" {
+  source = "./modules/platform"
 
-  registration_enabled = false
+  location                     = var.location
+  tags                         = local.tags
+  resource_group_name          = local.names.app_resource_group
+  acr_name                     = local.names.acr
+  acr_sku                      = var.acr_sku
+  log_analytics_name           = local.names.log_analytics
+  log_analytics_retention_days = var.log_analytics_retention_days
+  acr_pull_identity_name       = local.names.acr_pull_identity
 }
 
-# ============================================================
-# RESOURCE GROUP 3: PostgreSQL database
-# ============================================================
+module "network" {
+  source = "./modules/network"
 
-resource "azurerm_resource_group" "pgrg" {
-  name     = "NOVO-CI-PSQLDB-DEV"
-  location = local.location
-  tags     = local.tags
+  location                         = var.location
+  tags                             = local.tags
+  resource_group_name              = local.names.network_resource_group
+  vnet_name                        = local.names.vnet
+  vnet_address_space               = var.vnet_address_space
+  aca_subnet_name                  = local.names.aca_subnet
+  aca_subnet_address_prefixes      = var.aca_subnet_address_prefixes
+  postgres_subnet_name             = local.names.postgres_subnet
+  postgres_subnet_address_prefixes = var.postgres_subnet_address_prefixes
+  postgres_dns_zone_name           = local.names.postgres_dns_zone
+  postgres_dns_link_name           = local.names.postgres_dns_link
 }
 
-resource "azurerm_postgresql_flexible_server" "pg" {
-  name                = "novo-ci-pg-dev"
-  resource_group_name = azurerm_resource_group.pgrg.name
-  location            = azurerm_resource_group.pgrg.location
+module "postgresql" {
+  source = "./modules/postgresql"
 
-  version = "16"
+  location                     = var.location
+  tags                         = local.tags
+  resource_group_name          = local.names.postgres_resource_group
+  server_name                  = local.names.postgres_server
+  database_name                = var.postgres_database_name
+  postgres_version             = var.postgres_version
+  postgres_zone                = var.postgres_zone
+  admin_login                  = var.postgres_admin_login
+  admin_password               = data.azurerm_key_vault_secret.postgres_admin_password.value
+  sku_name                     = var.postgres_sku_name
+  storage_mb                   = var.postgres_storage_mb
+  storage_tier                 = var.postgres_storage_tier
+  backup_retention_days        = var.postgres_backup_retention_days
+  geo_redundant_backup_enabled = var.postgres_geo_redundant_backup_enabled
+  delegated_subnet_id          = module.network.postgres_subnet_id
+  private_dns_zone_id          = module.network.postgres_private_dns_zone_id
 
-  delegated_subnet_id = azurerm_subnet.pgsubnet.id
-  private_dns_zone_id = azurerm_private_dns_zone.pgdnszone.id
-
-  public_network_access_enabled = false
-
-  administrator_login    = "novacart"
-  administrator_password = var.postgres_admin_password
-
-  sku_name   = "B_Standard_B1ms"
-  storage_mb = 32768
-  storage_tier = "P4"
-
-  backup_retention_days        = 7
-  geo_redundant_backup_enabled = false
-
-  # Do not force a specific availability zone.
-
-  depends_on = [
-    azurerm_private_dns_zone_virtual_network_link.pgdnszone
-  ]
-
-  tags = local.tags
+  depends_on = [module.network]
 }
 
-resource "azurerm_postgresql_flexible_server_database" "pgdb" {
-  name      = "novacart"
-  server_id = azurerm_postgresql_flexible_server.pg.id
+module "container_apps_environment" {
+  source = "./modules/container-apps-environment"
 
-  charset   = "UTF8"
-  collation = "en_US.utf8"
-}
-
-# ============================================================
-# AZURE CONTAINER APPS ENVIRONMENT
-# ============================================================
-
-resource "azurerm_container_app_environment" "cae" {
-  name                = "Novocart-Dev-Container-Apps-Environment"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-
-  infrastructure_subnet_id = azurerm_subnet.acasubnet.id
-
+  name                       = local.names.container_apps_environment
+  location                   = var.location
+  resource_group_name        = module.platform.resource_group_name
+  infrastructure_subnet_id   = module.network.aca_subnet_id
+  log_analytics_workspace_id = module.platform.log_analytics_workspace_id
   logs_destination           = "log-analytics"
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.la.id
   public_network_access      = "Enabled"
+  workload_profile_name      = "Consumption"
+  workload_profile_type      = "Consumption"
 
-  workload_profile {
-    name                  = "Consumption"
-    workload_profile_type = "Consumption"
-  }
-
-  tags = local.tags
-}
-
-# ============================================================
-# BACKEND CONTAINER APP
-# ============================================================
-
-resource "azurerm_container_app" "backend" {
-  name                         = "novocart-be-ci-aca-dev"
-  resource_group_name          = azurerm_resource_group.rg.name
-  container_app_environment_id = azurerm_container_app_environment.cae.id
-
-  revision_mode = "Single"
-
-  identity {
-    type = "UserAssigned"
-
-    identity_ids = [
-      azurerm_user_assigned_identity.acr_pull.id
-    ]
-  }
-
-  registry {
-    server   = azurerm_container_registry.cr.login_server
-    identity = azurerm_user_assigned_identity.acr_pull.id
-  }
-
-  secret {
-    name = "database-url"
-
-    value = "postgresql://novacart:${urlencode(local.postgres_admin_password)}@${azurerm_postgresql_flexible_server.pg.fqdn}:5432/novacart?sslmode=require"
-  }
-
-  template {
-    min_replicas = 0
-    max_replicas = 2
-
-    container {
-      name   = "backend"
-      image  = "${azurerm_container_registry.cr.login_server}/novacart-backend:${local.image_tag}"
-      cpu    = 0.25
-      memory = "0.5Gi"
-
-      env {
-        name        = "DATABASE_URL"
-        secret_name = "database-url"
-      }
-
-      env {
-        name  = "APP_ENV"
-        value = "development"
-      }
-
-      env {
-        name  = "LOG_LEVEL"
-        value = "info"
-      }
-    }
-  }
-
-  ingress {
-    external_enabled = false
-    target_port      = 8080
-    transport        = "http"
-
-    traffic_weight {
-      percentage      = 100
-      latest_revision = true
-    }
-  }
-
-  depends_on = [
-    azurerm_role_assignment.acr_pull,
-    azurerm_postgresql_flexible_server_database.pgdb
-  ]
-
-  tags = local.tags
-}
-
-# ============================================================
-# FRONTEND CONTAINER APP
-# ============================================================
-
-resource "azurerm_container_app" "frontend" {
-  name                         = "novocart-fe-ci-aca-dev"
-  resource_group_name          = azurerm_resource_group.rg.name
-  container_app_environment_id = azurerm_container_app_environment.cae.id
-
-  revision_mode = "Single"
-
-  identity {
-    type = "UserAssigned"
-
-    identity_ids = [
-      azurerm_user_assigned_identity.acr_pull.id
-    ]
-  }
-
-  registry {
-    server   = azurerm_container_registry.cr.login_server
-    identity = azurerm_user_assigned_identity.acr_pull.id
-  }
-
-  template {
-    min_replicas = 0
-    max_replicas = 2
-
-    container {
-      name   = "frontend"
-      image  = "${azurerm_container_registry.cr.login_server}/novacart-frontend:${local.image_tag}"
-      cpu    = 0.25
-      memory = "0.5Gi"
-
-      # The Nginx image must substitute this value into its
-      # configuration at startup; setting an environment variable
-      # alone does not update a hard-coded Nginx upstream.
-      env {
-        name  = "BACKEND_URL"
-        value = "http://${azurerm_container_app.backend.ingress[0].fqdn}"
-      }
-    }
-  }
-
-  ingress {
-    external_enabled = true
-    target_port      = 80
-    transport        = "http"
-
-    traffic_weight {
-      percentage      = 100
-      latest_revision = true
-    }
-  }
-
-  depends_on = [
-    azurerm_role_assignment.acr_pull
-  ]
-
-  tags = local.tags
+  depends_on = [module.platform, module.network]
 }
 
 
-# OUTPUTS
+module "container_apps" {
+  count  = var.deploy_container_apps ? 1 : 0
+  source = "./modules/container-apps"
 
+  environment                  = var.environment
+  tags                         = local.tags
+  resource_group_name          = module.platform.resource_group_name
+  container_app_environment_id = module.container_apps_environment.id
+  acr_login_server             = module.platform.acr_login_server
+  acr_pull_identity_id         = module.platform.acr_pull_identity_id
+  image_tag                    = var.image_tag
+  backend_app_name             = local.names.backend_app
+  frontend_app_name            = local.names.frontend_app
+  postgres_fqdn                = module.postgresql.server_fqdn
+  postgres_admin_login         = var.postgres_admin_login
+  postgres_admin_password      = data.azurerm_key_vault_secret.postgres_admin_password.value
+  postgres_database_name       = var.postgres_database_name
+  min_replicas                 = var.container_app_min_replicas
+  max_replicas                 = var.container_app_max_replicas
 
-output "acr_login_server" {
-  value = azurerm_container_registry.cr.login_server
-}
-
-output "postgresql_fqdn" {
-  value = azurerm_postgresql_flexible_server.pg.fqdn
-}
-
-output "backend_internal_fqdn" {
-  value = azurerm_container_app.backend.ingress[0].fqdn
-}
-
-output "frontend_url" {
-  value = "https://${azurerm_container_app.frontend.ingress[0].fqdn}"
+  depends_on = [module.platform, module.postgresql, module.container_apps_environment]
 }
