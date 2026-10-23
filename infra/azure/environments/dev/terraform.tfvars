@@ -28,3 +28,4 @@ container_app_min_replicas = 1
 container_app_max_replicas = 2
 
 deploy_container_apps = false
+# Trigger DEV infrastructure CD test
