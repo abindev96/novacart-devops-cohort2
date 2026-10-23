@@ -39,5 +39,5 @@ resource "azurerm_role_assignment" "acr_pull" {
   principal_id         = azurerm_user_assigned_identity.acr_pull.principal_id
   principal_type       = "ServicePrincipal"
 
-  
+
 }
