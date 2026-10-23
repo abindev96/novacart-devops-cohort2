@@ -3,22 +3,19 @@ name: Azure Infrastructure CD
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "infra/azure/**"
       - ".github/workflows/azure-infra-cd.yml"
 
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "infra/azure/**"
       - ".github/workflows/azure-infra-cd.yml"
 
 permissions:
   contents: read
-  id-token: write
 
 env:
   TF_IN_AUTOMATION: "true"
@@ -33,64 +30,96 @@ jobs:
   validate:
     name: Terraform Validation
     runs-on: ubuntu-latest
-
     defaults:
       run:
         working-directory: infra/azure
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.15.8"
 
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
+      - run: terraform fmt -check -recursive
 
-      - name: Terraform Init
-        run: terraform init -backend=false -input=false
+      - run: terraform init -backend=false -input=false
 
-      - name: Terraform Validate
-        run: terraform validate
+      - run: terraform validate
 
   detect:
-    name: Detect Changed Environments
+    name: Detect Environments
     runs-on: ubuntu-latest
-
     outputs:
-      environments: ${{ steps.changed.outputs.all_changed_files }}
+      environments: ${{ steps.detect.outputs.environments }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Detect Environment Directories
-        id: changed
-        uses: tj-actions/changed-files@v47
-        with:
-          path: infra/azure/environments
-          diff_relative: true
-          dir_names: true
-          dir_names_max_depth: 1
-          dir_names_exclude_current_dir: true
-          matrix: true
+      - name: Detect Changed Environments
+        id: detect
+        shell: bash
+        env:
+          BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            base="$PR_BASE"
+          else
+            base="$BEFORE"
+          fi
+
+          if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+            base="$(git rev-parse HEAD^)"
+          fi
+
+          mapfile -t changed < <(git diff --name-only "$base" "$GITHUB_SHA")
+
+          shared=false
+          declare -A selected=()
+
+          for file in "${changed[@]}"; do
+            if [[ "$file" == infra/azure/environments/* ]]; then
+              rest="${file#infra/azure/environments/}"
+              env_name="${rest%%/*}"
+              selected["$env_name"]=1
+            elif [[ "$file" == infra/azure/* ]]; then
+              shared=true
+            fi
+          done
+
+          if [[ "$shared" == true ]]; then
+            for file in infra/azure/environments/*/terraform.tfvars; do
+              [[ -f "$file" ]] || continue
+              rest="${file#infra/azure/environments/}"
+              selected["${rest%%/*}"]=1
+            done
+          fi
+
+          envs=()
+          for name in "${!selected[@]}"; do
+            [[ -f "infra/azure/environments/$name/terraform.tfvars" ]] || continue
+            envs+=("$name")
+          done
+
+          if ((${#envs[@]})); then
+            printf '%s\n' "${envs[@]}" | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))' > environments.json
+          else
+            echo '["__skip__"]' > environments.json
+          fi
+
+          echo "environments=$(cat environments.json)" >> "$GITHUB_OUTPUT"
+          echo "Selected environments: $(cat environments.json)"
 
   deploy:
     name: Deploy ${{ matrix.environment }}
-    needs:
-      - validate
-      - detect
-
+    needs: [validate, detect]
     if: >-
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
-      needs.detect.outputs.environments != '[]' &&
-      needs.detect.outputs.environments != ''
+      needs.detect.outputs.environments != '["__skip__"]'
 
     runs-on: ubuntu-latest
 
@@ -112,28 +141,25 @@ jobs:
         working-directory: infra/azure
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.15.8"
 
-      - name: Azure Login using OIDC
+      - name: Azure Login
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Terraform Init
         run: >-
           terraform init -input=false
           -backend-config="key=novacart-${{ matrix.environment }}.tfstate"
 
-      - name: Terraform Validate
-        run: terraform validate
+      - run: terraform validate
 
       - name: Terraform Plan
         run: >-
@@ -143,4 +169,3 @@ jobs:
 
       - name: Terraform Apply
         run: terraform apply -input=false -auto-approve tfplan
-
