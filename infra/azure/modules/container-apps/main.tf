@@ -57,6 +57,8 @@ resource "azurerm_container_app" "backend" {
       latest_revision = true
     }
   }
+
+  tags = var.tags
 }
 
 resource "azurerm_container_app" "frontend" {
@@ -86,11 +88,10 @@ resource "azurerm_container_app" "frontend" {
       cpu    = 0.25
       memory = "0.5Gi"
 
-      # The image entrypoint must substitute BACKEND_URL into Nginx config.
-      # Setting an env var alone does not change a hard-coded Nginx upstream.
+      # The image entrypoint must substitute BACKEND_URL into the Nginx config.
       env {
         name  = "BACKEND_URL"
-        value = "${azurerm_container_app.backend.ingress[0].fqdn}"
+        value = "https://${azurerm_container_app.backend.ingress[0].fqdn}"
       }
     }
   }

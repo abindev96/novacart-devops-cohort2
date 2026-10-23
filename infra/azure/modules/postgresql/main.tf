@@ -26,6 +26,7 @@ resource "azurerm_postgresql_flexible_server" "server" {
 
   backup_retention_days        = var.backup_retention_days
   geo_redundant_backup_enabled = var.geo_redundant_backup_enabled
+  tags                         = var.tags
 }
 
 resource "azurerm_postgresql_flexible_server_database" "database" {

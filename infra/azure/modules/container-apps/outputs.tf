@@ -1,13 +1,13 @@
-output "backend_name" {
-  value = azurerm_container_app.backend.name
+output "backend_id" {
+  value = azurerm_container_app.backend.id
 }
 
 output "backend_fqdn" {
   value = azurerm_container_app.backend.ingress[0].fqdn
 }
 
-output "frontend_name" {
-  value = azurerm_container_app.frontend.name
+output "frontend_id" {
+  value = azurerm_container_app.frontend.id
 }
 
 output "frontend_fqdn" {

@@ -1,5 +1,5 @@
 variable "subscription_id" {
-  description = "Azure subscription ID used for the deployment."
+  description = "Azure subscription ID used for this environment."
   type        = string
 
   validation {
@@ -14,24 +14,24 @@ variable "project_name" {
   default     = "novacart"
 
   validation {
-    condition     = can(regex("^[a-z0-9]{3,16}$", var.project_name))
-    error_message = "project_name must be 3-16 lowercase letters or numbers so generated Azure resource names remain within common length limits."
+    condition     = can(regex("^[a-z0-9]{3,10}$", var.project_name))
+    error_message = "project_name must contain 3-10 lowercase letters or numbers so the generated ACR and Key Vault names remain within Azure length limits."
   }
 }
 
 variable "project_display_name" {
-  description = "Readable project name used in Azure resource tags."
+  description = "Readable project name used in resource tags."
   type        = string
   default     = "NovaCart"
 }
 
 variable "environment" {
-  description = "Environment represented by the selected Terraform workspace. Must be dev or prd."
+  description = "Deployment environment. Defaults are supplied in terraform.tfvars for DEV."
   type        = string
 
   validation {
     condition     = contains(["dev", "prd"], var.environment)
-    error_message = "environment must be dev or prd."
+    error_message = "environment must be either dev or prd."
   }
 }
 
@@ -39,6 +39,18 @@ variable "location" {
   description = "Azure region for workload resources."
   type        = string
   default     = "Central India"
+}
+
+variable "key_vault_resource_group_name" {
+  description = "Pre-created resource group that contains the per-environment Azure Key Vaults."
+  type        = string
+  default     = "novacart-ci-rg-secrets"
+}
+
+variable "postgres_admin_secret_name" {
+  description = "Name of the pre-created Key Vault secret containing the PostgreSQL administrator password."
+  type        = string
+  default     = "postgres-admin-password"
 }
 
 variable "vnet_address_space" {
@@ -52,7 +64,7 @@ variable "aca_subnet_address_prefixes" {
 }
 
 variable "postgres_subnet_address_prefixes" {
-  description = "Dedicated delegated subnet prefixes for PostgreSQL Flexible Server."
+  description = "Delegated subnet prefixes for PostgreSQL Flexible Server."
   type        = list(string)
 }
 
@@ -68,7 +80,7 @@ variable "acr_sku" {
 }
 
 variable "log_analytics_retention_days" {
-  description = "Log Analytics workspace retention in days."
+  description = "Log Analytics retention in days."
   type        = number
   default     = 30
 
@@ -79,21 +91,15 @@ variable "log_analytics_retention_days" {
 }
 
 variable "image_tag" {
-  description = "Application image tag deployed to both Container Apps."
+  description = "Immutable application image tag deployed to frontend and backend."
   type        = string
   default     = "v1.0.0"
 }
 
 variable "postgres_admin_login" {
-  description = "PostgreSQL administrator login."
+  description = "PostgreSQL administrator login. Keep the application on a least-privilege database user in a production-hardening pass."
   type        = string
   default     = "novacart"
-}
-
-variable "postgres_admin_password" {
-  description = "PostgreSQL administrator password. Supply through TF_VAR_postgres_admin_password; do not commit it to a tfvars file."
-  type        = string
-  sensitive   = true
 }
 
 variable "postgres_version" {
@@ -109,7 +115,7 @@ variable "postgres_zone" {
 }
 
 variable "postgres_sku_name" {
-  description = "PostgreSQL Flexible Server SKU."
+  description = "PostgreSQL Flexible Server SKU. Review this value for PRD."
   type        = string
   default     = "B_Standard_B1ms"
 }
@@ -127,7 +133,7 @@ variable "postgres_storage_tier" {
 }
 
 variable "postgres_backup_retention_days" {
-  description = "PostgreSQL backup retention in days."
+  description = "PostgreSQL backup retention in days. Review this value for PRD."
   type        = number
   default     = 7
 
@@ -144,19 +150,30 @@ variable "postgres_geo_redundant_backup_enabled" {
 }
 
 variable "postgres_database_name" {
-  description = "Database name created inside PostgreSQL Flexible Server."
+  description = "Application database name."
   type        = string
   default     = "novacart"
 }
 
 variable "container_app_min_replicas" {
-  description = "Minimum replica count for each Container App."
+  description = "Minimum replicas for each Container App."
   type        = number
   default     = 1
 }
 
 variable "container_app_max_replicas" {
-  description = "Maximum replica count for each Container App."
+  description = "Maximum replicas for each Container App."
   type        = number
   default     = 2
+
+  validation {
+    condition     = var.container_app_max_replicas >= var.container_app_min_replicas
+    error_message = "container_app_max_replicas must be greater than or equal to container_app_min_replicas."
+  }
+}
+
+variable "deploy_container_apps" {
+  description = "Set true only after the v1.0.0 frontend/backend images exist in ACR. The first apply defaults to infrastructure only."
+  type        = bool
+  default     = false
 }

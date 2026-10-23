@@ -17,7 +17,3 @@ output "server_fqdn" {
 output "database_name" {
   value = azurerm_postgresql_flexible_server_database.database.name
 }
-
-output "database_id" {
-  value = azurerm_postgresql_flexible_server_database.database.id
-}

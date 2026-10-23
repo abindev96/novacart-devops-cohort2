@@ -1,26 +1,21 @@
-output "resource_group_name" {
-  description = "Resource group containing ACR, Log Analytics and the managed identity."
+output "environment" {
+  description = "Environment deployed by this configuration."
+  value       = var.environment
+}
+
+output "app_resource_group_name" {
+  description = "Resource group containing ACR, Log Analytics, identity and Container Apps resources."
   value       = module.platform.resource_group_name
 }
 
 output "network_resource_group_name" {
-  description = "Resource group containing the VNet, subnets and PostgreSQL private DNS zone."
+  description = "Resource group containing the VNet, subnets and private DNS resources."
   value       = module.network.resource_group_name
 }
 
 output "postgres_resource_group_name" {
-  description = "Resource group containing PostgreSQL Flexible Server."
+  description = "Resource group containing PostgreSQL Flexible Server and its database."
   value       = module.postgresql.resource_group_name
-}
-
-output "azure_region" {
-  description = "Azure region used by the workload."
-  value       = var.location
-}
-
-output "acr_name" {
-  description = "Azure Container Registry name."
-  value       = module.platform.acr_name
 }
 
 output "acr_login_server" {
@@ -33,24 +28,29 @@ output "log_analytics_workspace_id" {
   value       = module.platform.log_analytics_workspace_id
 }
 
-output "container_apps_environment_name" {
-  description = "Container Apps managed environment name."
-  value       = module.container_apps_environment.name
-}
-
-output "container_apps_environment_id" {
-  description = "Container Apps managed environment resource ID."
-  value       = module.container_apps_environment.id
-}
-
-output "container_apps_identity_id" {
+output "acr_pull_identity_id" {
   description = "User-assigned managed identity resource ID used for ACR pulls."
   value       = module.platform.acr_pull_identity_id
 }
 
-output "postgres_server_name" {
-  description = "PostgreSQL Flexible Server name."
-  value       = module.postgresql.server_name
+output "vnet_id" {
+  description = "Virtual network resource ID."
+  value       = module.network.vnet_id
+}
+
+output "aca_subnet_id" {
+  description = "Azure Container Apps infrastructure subnet resource ID."
+  value       = module.network.aca_subnet_id
+}
+
+output "postgres_subnet_id" {
+  description = "PostgreSQL delegated subnet resource ID."
+  value       = module.network.postgres_subnet_id
+}
+
+output "container_apps_environment_id" {
+  description = "Container Apps Environment resource ID."
+  value       = module.container_apps_environment.id
 }
 
 output "postgres_server_fqdn" {
@@ -63,22 +63,17 @@ output "postgres_database_name" {
   value       = module.postgresql.database_name
 }
 
-output "backend_container_app_name" {
-  description = "Backend Container App name."
-  value       = module.container_apps.backend_name
-}
-
-output "backend_container_app_fqdn" {
-  description = "Internal backend Container App FQDN."
-  value       = module.container_apps.backend_fqdn
-}
-
-output "frontend_container_app_name" {
-  description = "Frontend Container App name."
-  value       = module.container_apps.frontend_name
+output "container_apps_deployed" {
+  description = "Whether the frontend and backend Container Apps were enabled for this apply."
+  value       = var.deploy_container_apps
 }
 
 output "frontend_url" {
-  description = "Public frontend URL."
-  value       = module.container_apps.frontend_url
+  description = "Frontend URL when Container Apps are deployed; otherwise a message explaining the next step."
+  value       = var.deploy_container_apps ? module.container_apps[0].frontend_url : "Not deployed yet. Push v1.0.0 images to ACR, set deploy_container_apps=true, and apply again."
+}
+
+output "backend_internal_fqdn" {
+  description = "Internal backend FQDN when Container Apps are deployed."
+  value       = var.deploy_container_apps ? module.container_apps[0].backend_fqdn : null
 }

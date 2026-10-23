@@ -12,6 +12,7 @@ resource "azurerm_container_registry" "cr" {
   sku                  = var.acr_sku
   admin_enabled        = false
   role_assignment_mode = "LegacyRegistryPermissions"
+  tags                 = var.tags
 }
 
 resource "azurerm_log_analytics_workspace" "la" {
@@ -21,6 +22,7 @@ resource "azurerm_log_analytics_workspace" "la" {
 
   sku               = "PerGB2018"
   retention_in_days = var.log_analytics_retention_days
+  tags              = var.tags
 }
 
 resource "azurerm_user_assigned_identity" "acr_pull" {

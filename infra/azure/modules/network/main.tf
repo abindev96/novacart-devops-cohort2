@@ -1,6 +1,7 @@
 resource "azurerm_resource_group" "network" {
   name     = var.resource_group_name
   location = var.location
+  tags     = var.tags
 }
 
 resource "azurerm_virtual_network" "vnet" {
@@ -9,6 +10,7 @@ resource "azurerm_virtual_network" "vnet" {
   resource_group_name = azurerm_resource_group.network.name
 
   address_space = var.vnet_address_space
+  tags          = var.tags
 }
 
 resource "azurerm_subnet" "aca" {
@@ -52,8 +54,7 @@ resource "azurerm_subnet" "postgres" {
 resource "azurerm_private_dns_zone" "postgres" {
   name                = var.postgres_dns_zone_name
   resource_group_name = azurerm_resource_group.network.name
-
-  tags = var.tags
+  tags                = var.tags
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
@@ -63,4 +64,5 @@ resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
   virtual_network_id    = azurerm_virtual_network.vnet.id
 
   registration_enabled = false
+  tags                 = var.tags
 }
