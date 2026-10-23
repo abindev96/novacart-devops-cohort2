@@ -1,8 +1,8 @@
-subscription_id       = "c067343b-5c74-4217-813c-da18a4199741"
-project_name          = "novacart"
-project_display_name  = "NovaCart"
-environment           = "dev"
-location              = "Central India"
+subscription_id      = "c067343b-5c74-4217-813c-da18a4199741"
+project_name         = "novacart"
+project_display_name = "NovaCart"
+environment          = "dev"
+location             = "Central India"
 
 # Original DEV address plan; ACA /23 and PostgreSQL /24 are inside the VNet /22.
 vnet_address_space               = ["172.16.24.0/22"]
@@ -13,7 +13,7 @@ acr_sku                      = "Basic"
 log_analytics_retention_days = 30
 image_tag                    = "v1.0.0"
 
-key_vault_name = "kv-novacart-secrets-01"
+key_vault_name                        = "kv-novacart-secrets-01"
 postgres_admin_login                  = "novacart"
 postgres_version                      = "16"
 postgres_zone                         = "2"

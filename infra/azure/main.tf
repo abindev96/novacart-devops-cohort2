@@ -12,20 +12,20 @@ locals {
   postgres_server_name = "${var.project_name}-ci-pg-${var.environment}-${local.subscription_suffix}"
 
   names = {
-    app_resource_group     = "${var.project_name}-ci-rg-${var.environment}"
-    network_resource_group = "${var.project_name}-ci-nrg-${var.environment}"
+    app_resource_group      = "${var.project_name}-ci-rg-${var.environment}"
+    network_resource_group  = "${var.project_name}-ci-nrg-${var.environment}"
     postgres_resource_group = "${var.project_name}-ci-pgrg-${var.environment}"
 
     # Azure Container Registry names must be alphanumeric with no hyphens.
-    acr                = "${var.project_name}cicr${var.environment}${local.subscription_suffix}"
-    log_analytics      = "${var.project_name}-ci-law-${var.environment}"
-    acr_pull_identity  = "${var.project_name}-ci-id-${var.environment}"
+    acr               = "${var.project_name}cicr${var.environment}${local.subscription_suffix}"
+    log_analytics     = "${var.project_name}-ci-law-${var.environment}"
+    acr_pull_identity = "${var.project_name}-ci-id-${var.environment}"
 
-    vnet                = "${var.project_name}-ci-vnet-${var.environment}"
-    aca_subnet          = "${var.project_name}-ci-snet-aca-${var.environment}"
-    postgres_subnet     = "${var.project_name}-ci-snet-pg-${var.environment}"
-    postgres_dns_zone   = "${local.postgres_server_name}.private.postgres.database.azure.com"
-    postgres_dns_link   = "${var.project_name}-ci-pg-link-${var.environment}"
+    vnet              = "${var.project_name}-ci-vnet-${var.environment}"
+    aca_subnet        = "${var.project_name}-ci-snet-aca-${var.environment}"
+    postgres_subnet   = "${var.project_name}-ci-snet-pg-${var.environment}"
+    postgres_dns_zone = "${local.postgres_server_name}.private.postgres.database.azure.com"
+    postgres_dns_link = "${var.project_name}-ci-pg-link-${var.environment}"
 
     # PostgreSQL server and Key Vault names must be globally unique.
     postgres_server = local.postgres_server_name
@@ -51,14 +51,14 @@ data "azurerm_key_vault_secret" "postgres_admin_password" {
 module "platform" {
   source = "./modules/platform"
 
-  location                    = var.location
-  tags                        = local.tags
-  resource_group_name         = local.names.app_resource_group
-  acr_name                    = local.names.acr
-  acr_sku                     = var.acr_sku
-  log_analytics_name          = local.names.log_analytics
+  location                     = var.location
+  tags                         = local.tags
+  resource_group_name          = local.names.app_resource_group
+  acr_name                     = local.names.acr
+  acr_sku                      = var.acr_sku
+  log_analytics_name           = local.names.log_analytics
   log_analytics_retention_days = var.log_analytics_retention_days
-  acr_pull_identity_name      = local.names.acr_pull_identity
+  acr_pull_identity_name       = local.names.acr_pull_identity
 }
 
 module "network" {
@@ -72,7 +72,7 @@ module "network" {
   aca_subnet_name                  = local.names.aca_subnet
   aca_subnet_address_prefixes      = var.aca_subnet_address_prefixes
   postgres_subnet_name             = local.names.postgres_subnet
-  postgres_subnet_address_prefixes  = var.postgres_subnet_address_prefixes
+  postgres_subnet_address_prefixes = var.postgres_subnet_address_prefixes
   postgres_dns_zone_name           = local.names.postgres_dns_zone
   postgres_dns_link_name           = local.names.postgres_dns_link
 }
@@ -95,7 +95,7 @@ module "postgresql" {
   backup_retention_days        = var.postgres_backup_retention_days
   geo_redundant_backup_enabled = var.postgres_geo_redundant_backup_enabled
   delegated_subnet_id          = module.network.postgres_subnet_id
-  private_dns_zone_id           = module.network.postgres_private_dns_zone_id
+  private_dns_zone_id          = module.network.postgres_private_dns_zone_id
 
   depends_on = [module.network]
 }

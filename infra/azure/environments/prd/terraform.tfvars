@@ -1,10 +1,10 @@
 # FUTURE PRD configuration.
 # Review SKU, HA, backup, recovery, logging, scaling, network and cost before production use.
-subscription_id       = "c067343b-5c74-4217-813c-da18a4199741"
-project_name          = "novacart"
-project_display_name  = "NovaCart"
-environment           = "prd"
-location              = "Central India"
+subscription_id      = "c067343b-5c74-4217-813c-da18a4199741"
+project_name         = "novacart"
+project_display_name = "NovaCart"
+environment          = "prd"
+location             = "Central India"
 
 # Separate, non-overlapping PRD network range.
 vnet_address_space               = ["172.16.28.0/22"]
