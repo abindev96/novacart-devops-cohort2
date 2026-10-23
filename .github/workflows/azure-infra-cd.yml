@@ -1,4 +1,3 @@
-
 name: Azure Infrastructure CD
 
 on:
@@ -112,7 +111,7 @@ jobs:
 
           echo "environments=$(cat environments.json)" >> "$GITHUB_OUTPUT"
           echo "Selected environments: $(cat environments.json)"
-
+  
   deploy:
     name: Deploy ${{ matrix.environment }}
     needs: [validate, detect]
@@ -147,6 +146,18 @@ jobs:
         with:
           terraform_version: "1.15.8"
 
+      - name: Verify Azure secrets
+        shell: bash
+        env:
+          CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          test -n "$CLIENT_ID" || { echo "AZURE_CLIENT_ID missing"; exit 1; }
+          test -n "$TENANT_ID" || { echo "AZURE_TENANT_ID missing"; exit 1; }
+          test -n "$SUBSCRIPTION_ID" || { echo "AZURE_SUBSCRIPTION_ID missing"; exit 1; }
+          echo "All three Azure secrets are available."
+          
       - name: Azure Login
         uses: azure/login@v2
         with:
