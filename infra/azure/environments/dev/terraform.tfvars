@@ -1,5 +1,3 @@
-# DEFAULT ENVIRONMENT: DEV.
-# Terraform automatically loads this file when commands run from the project root.
 subscription_id       = "c067343b-5c74-4217-813c-da18a4199741"
 project_name          = "novacart"
 project_display_name  = "NovaCart"
@@ -15,6 +13,7 @@ acr_sku                      = "Basic"
 log_analytics_retention_days = 30
 image_tag                    = "v1.0.0"
 
+key_vault_name = "kv-novacart-secrets-01"
 postgres_admin_login                  = "novacart"
 postgres_version                      = "16"
 postgres_zone                         = "2"

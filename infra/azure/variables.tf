@@ -47,6 +47,11 @@ variable "key_vault_resource_group_name" {
   default     = "novacart-ci-rg-secrets"
 }
 
+variable "key_vault_name" {
+  description = "Name of the existing Azure Key Vault."
+  type        = string
+}
+
 variable "postgres_admin_secret_name" {
   description = "Name of the pre-created Key Vault secret containing the PostgreSQL administrator password."
   type        = string
