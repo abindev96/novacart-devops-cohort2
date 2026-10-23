@@ -13,7 +13,7 @@ acr_sku                      = "Basic"
 log_analytics_retention_days = 30
 image_tag                    = "v1.0.0"
 
-key_vault_name                        = "kv-novacart-secrets-01"
+key_vault_name                        = "kv-novacart-secrets-02"
 postgres_admin_login                  = "novacart"
 postgres_version                      = "16"
 postgres_zone                         = "2"
