@@ -1,56 +1,15 @@
-#!/usr/bin/env bash
-# Single entry point for CI steps: lint | test | build
-# Matches the NovaCart layout:
-#   backend/   Python (FastAPI): app/, tests/, requirements.txt
-#   frontend/  static HTML/CSS/JS (no package.json, no bundler)
-# Run locally from the repo root:  bash scripts/ci/run.sh test
-set -euo pipefail
-cd novacart
-step="${1:?usage: run.sh lint|test|build}"
+create service principal creation for authentication,novocart-ci-rg-dev,sanovocartcitfstatedev,tfstate, storage account contributor role for storage account.
 
-fail() { echo "::error::$*"; exit 1; }
+use_oidc         = true>> pinnidu add akanam cli auth kalanju
 
+create container registry and push privilage for github
 
+#check tags
+novacart-kv-dev: new keyvault need to add
+postgres-admin-password=novacart_local_only
+database-url=postgresql://novacart:novacart_local_only@novacart-ci-pg-dev.postgres.database.azure.com:5432/novocart?sslmode=require
+need to assign the keyvault officer to this login id  Key Vault Secrets User to the Terraform execution identity
 
-backend_setup() {
-  python -m pip install --upgrade pip
-  python -m pip install -r backend/requirements.txt
-}
+ administrator_password_wo = ephemeral.azurerm_key_vault_secret.postgres_admin_password.value
+administrator_password_wo_version = 1
 
-case "$step" in
-  lint)
-    echo "== Backend lint (ruff) =="
-    python -m pip install ruff
-    (cd backend && ruff check . --ignore I001)
-    echo "== Frontend lint (JavaScript syntax check) =="
-    for f in frontend/*.js; do
-      [ -e "$f" ] || continue
-      node --check "$f"
-    done
-    ;;
-
-  test)
-    echo "== Backend tests (pytest) =="
-    backend_setup
-    python -m pip install pytest httpx
-    # Run from backend/ so `import app` resolves. `python -m pytest` adds cwd to sys.path.
-    (cd backend && python -m pytest tests -v)
-    ;;
-
-  build)
-    echo "== Backend: compile + import the app =="
-    backend_setup
-    (cd backend && python -m compileall -q app && python -c "import app.main")
-    echo "== Frontend: static files present and referenced assets exist =="
-    [ -f frontend/index.html ] || fail "frontend/index.html missing"
-    for asset in app.js styles.css; do
-      [ -f "frontend/$asset" ] || fail "frontend/$asset missing"
-    done
-    # If a frontend/package.json is added later, build it here.
-    if [ -f frontend/package.json ]; then
-      (cd frontend && { if [ -f package-lock.json ]; then npm ci; else npm install; fi; } && npm run build --if-present)
-    fi
-    ;;
-
-  *) fail "unknown step: $step (use lint|test|build)" ;;
-esac
