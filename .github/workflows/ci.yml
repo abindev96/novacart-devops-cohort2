@@ -3,28 +3,32 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
   push:
-    branches: [main]
+    branches:
+      - main
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   ci:
-    name: Secret Scan and Backend Tests
+    name: CI
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: gitleaks/gitleaks-action@v3
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-python@v7
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
@@ -33,76 +37,47 @@ jobs:
       - name: Install dependencies
         working-directory: novacart/backend
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pytest httpx
+          python -m pip install -r requirements.txt
+          python -m pip install pytest httpx
 
       - name: Run backend tests
         working-directory: novacart/backend
         run: python -m pytest -q
 
-  build-push:
-    needs: ci
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+      - name: Generate image tags
+        if: github.event_name == 'push'
+        run: |
+          echo "VERSION=v1.0.${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
-    permissions:
-      contents: read
-      id-token: write
-
-    concurrency:
-      group: novacart-acr-publish
-      cancel-in-progress: false
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: azure/login@v3
-        if: vars.ACR_NAME != ''
+      - name: Login to Azure using OIDC
+        if: github.event_name == 'push'
+        continue-on-error: false
+        uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Check ACR
-        id: acr
-        if: vars.ACR_NAME != ''
+            - name: Build and push images to ACR
+        if: success() && github.event_name == 'push'
         env:
           ACR_NAME: ${{ vars.ACR_NAME }}
         run: |
-          if SERVER=$(az acr show -n "$ACR_NAME" --query loginServer -o tsv 2>/dev/null); then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "server=$SERVER" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "ACR unavailable; skipping image push."
-          fi
+          set -e
 
-      - name: Login to ACR
-        if: steps.acr.outputs.exists == 'true'
-        env:
-          ACR_NAME: ${{ vars.ACR_NAME }}
-        run: az acr login --name "$ACR_NAME"
+          ACR_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
+          az acr login --name "$ACR_NAME"
 
-      - name: Generate Image Version
-        id: version
-        if: steps.acr.outputs.exists == 'true'
-        env:
-          ACR_NAME: ${{ vars.ACR_NAME }}
-        run: |
-          latest=$(az acr repository show-tags -n "$ACR_NAME" \
-            --repository novacart-backend -o tsv 2>/dev/null |
-            grep -E '^v1\.0\.[0-9]+$' |
-            sed 's/v1\.0\.//' | sort -n | tail -1 || true)
+          for APP in backend frontend; do
+            docker build \
+              --label org.opencontainers.image.revision="$GITHUB_SHA" \
+              --label com.novacart.github.run-id="$GITHUB_RUN_ID" \
+              -t "$ACR_SERVER/novocart-$APP:$VERSION" \
+              -t "$ACR_SERVER/novocart-$APP:sha-$SHORT_SHA" \
+              "./novacart/$APP"
 
-          echo "tag=v1.0.$((${latest:-0}+1))" >> "$GITHUB_OUTPUT"
-
-      - name: Build and Push Images
-        if: steps.acr.outputs.exists == 'true'
-        env:
-          SERVER: ${{ steps.acr.outputs.server }}
-          TAG: ${{ steps.version.outputs.tag }}
-        run: |
-          for app in backend frontend; do
-            docker build -t "$SERVER/novacart-$app:$TAG" "./novacart/$app"
-            docker push "$SERVER/novacart-$app:$TAG"
+            docker push "$ACR_SERVER/novocart-$APP:$VERSION"
+            docker push "$ACR_SERVER/novocart-$APP:sha-$SHORT_SHA"
           done
+      
